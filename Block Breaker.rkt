@@ -7,6 +7,8 @@
 (struct state (x y vx vy) #:mutable #:transparent)
 (define a-ball (state 250 300 0 2))
 (define bar (state 250 485 0 0))
+(define a-block1 (state 250 150 0 0))
+(define a-block2 (state 285 150 0 0))
 
 (define SCENE (empty-scene 500 500 "black"))
 (define VERTICAL_RECTANGLE (rectangle 1 500 "solid" "red"))
