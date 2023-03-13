@@ -7,50 +7,40 @@
 (struct state (x y vx vy) #:mutable #:transparent)
 (define a-ball (state 250 300 0 2))
 (define bar (state 250 485 0 0))
-(define a-block1 (state 250 150 0 0))
-(define a-block2 (state 285 150 0 0))
 
 (define SCENE (empty-scene 500 500 "black"))
 (define VERTICAL_RECTANGLE (rectangle 1 500 "solid" "red"))
 (define HORIZONTAL_RECTANGLE (rectangle 490 1 "solid" "red"))
 (define BALL (circle 6 "solid" "green"))
 (define BAR (rectangle 50 5 "solid" "green"))
+(define BLOCK (rectangle 30 7 "solid" "green"))
 
-;First Row Block1 = a-block1; also block1 is in the middle.
-(define block1 (rectangle 30 7 "solid" "red"))
-(define block2 (rectangle 30 7 "solid" "Brown"))
-(define block3 (rectangle 30 7 "solid" "Green"))
-(define block4 (rectangle 30 7 "solid" "Orange"))
-(define block5 (rectangle 30 7 "solid" "Pink"))
-(define block6 (rectangle 30 7 "solid" "Purple"))
-(define block7 (rectangle 30 7 "solid" "Turquoise"))
-(define block8 (rectangle 30 7 "solid" "Yellow"))
-(define block9 (rectangle 30 7 "solid" "Goldenrod"))
-(define block10(rectangle 30 7 "solid" "Dark Pink"))
-
-;Second Row
-(define block11 (rectangle 30 7 "solid" "Light Brown"))
-(define block12 (rectangle 30 7 "solid" "Medium Brown"))
-(define block13 (rectangle 30 7 "solid" "Dark Brown"))
-(define block14 (rectangle 30 7 "solid" "Medium Cyan"))
-(define block15 (rectangle 30 7 "solid" "Light Goldenrod"))
-(define block16 (rectangle 30 7 "solid" "Medium Gray"))
-(define block17 (rectangle 30 7 "solid" "Medium Green"))
-(define block18 (rectangle 30 7 "solid" "Light Orange"))
-(define block19 (rectangle 30 7 "solid" "Medium Orange"))
-(define block20 (rectangle 30 7 "solid" "Medium Pink"))
-
-;Third Row
-(define block21 (rectangle 30 7 "solid" "red"))
-(define block22 (rectangle 30 7 "solid" "Brown"))
-(define block23 (rectangle 30 7 "solid" "Green"))
-(define block24 (rectangle 30 7 "solid" "Orange"))
-(define block25 (rectangle 30 7 "solid" "Pink"))
-(define block26 (rectangle 30 7 "solid" "Purple"))
-(define block27 (rectangle 30 7 "solid" "Turquoise"))
-(define block28 (rectangle 30 7 "solid" "Yellow"))
-(define block29 (rectangle 30 7 "solid" "Goldenrod"))
-(define block30 (rectangle 30 7 "solid" "Dark Pink"))
+     ; start must be a list of 2 elements where the first is the position on x and second position on y
+(define (MAKE-STRUCTURE start lines columns) ; lines give the number of rows we ask for and similar with columns
+  
+  (define (iterations HOW_MANY_TIMES lst) ; creates an ordered list to help us iterate a certain number of times 
+    (cond                                 ; based on lines and columns
+      [(= HOW_MANY_TIMES 1) (cons HOW_MANY_TIMES lst)]
+      [#t (iterations (- HOW_MANY_TIMES 1) (cons HOW_MANY_TIMES lst))]))
+  
+  (define NUMBER-OF-ROWS (iterations lines `()))        ; creates the ordered list for rows
+  (define NUMBER-OF-COLUMNS (iterations columns `()))   ; creates the ordered list for columns
+  
+  (define (MAKE-LINE start)                 ; creates a full row at a distance of 35 on x
+    (for/list [(i NUMBER-OF-COLUMNS)]
+      (cond
+        [(= i 1) start]
+        [#t (cons (+ (first start) (* (list-ref NUMBER-OF-COLUMNS (- i 2)) 35)) (rest start))]
+        )
+      )
+    )
+  (for/list [(i NUMBER-OF-ROWS)]            ; uses MAKE-LINE to create multiple rows at a distance of 13 on y
+    (cond
+      [(= i 1) (MAKE-LINE start)]
+      [#t (MAKE-LINE (cons (first start) (cons (+ (first (rest start)) (* (list-ref NUMBER-OF-ROWS (- i 2)) 13)) '())))]
+      )
+    )
+  )
 
 (define (UPDATE_POSITION ball)
   (set-state-x! a-ball (+ (state-x a-ball) (state-vx a-ball)))
@@ -118,112 +108,22 @@
   )
 
 (define (OBJECTS state)
-(place-image BALL
-        (state-x a-ball)
-        (state-y a-ball)
-(place-image VERTICAL_RECTANGLE
-        5
-        255
-(place-image VERTICAL_RECTANGLE
-        495
-        255
-(place-image block1
-       (state-x a-block1)
-       (state-y a-block1)
-(place-image block2
-       (state-x a-block2)
-       (state-y a-block2)
-(place-image block3
-       215
-       150
-(place-image block4
-       180
-       150
-(place-image block5
-       145
-       150
-(place-image block6
-       110
-       150
-(place-image block7
-       75
-       150
-(place-image block8
-       320
-       150
-(place-image block9
-       355
-       150
-(place-image block10
-       390
-       150
-(place-image block11
-       250
-       137
-(place-image block12
-       285
-       137
-(place-image block13
-       215
-       137
-(place-image block14
-       180
-       137
-(place-image block15
-       145
-       137
-(place-image block16
-       110
-       137
-(place-image block17
-       75
-       137
-(place-image block18
-       320
-       137
-(place-image block19
-       355
-       137
-(place-image block20
-       390
-       137
-(place-image block21
-       250
-       125
-(place-image block22
-       285
-       125
-(place-image block23
-       215
-       125
-(place-image block24
-       180
-       125
-(place-image block25
-       145
-       125
-(place-image block26
-       110
-       125
-(place-image block27
-       75
-       125
-(place-image block28
-       320
-       125
-(place-image block29
-       355
-       125
-(place-image block30
-       390
-       125
-(place-image HORIZONTAL_RECTANGLE
-       250
-       5
-(place-image BAR
-(state-x bar)
-(state-y bar)
-SCENE))))))))))))))))))))))))))))))))))))
+  (place-image BALL
+               (state-x a-ball)
+               (state-y a-ball)
+               (place-image VERTICAL_RECTANGLE
+                            5
+                            255
+                            (place-image VERTICAL_RECTANGLE
+                                         495
+                                         255
+                                         (place-image HORIZONTAL_RECTANGLE
+                                                      250
+                                                      5
+                                                      (place-image BAR
+                                                                   (state-x bar)
+                                                                   (state-y bar)
+                                                                   SCENE))))))
 
 (big-bang a-ball
   (on-tick UPDATE_POSITION 1/120)
