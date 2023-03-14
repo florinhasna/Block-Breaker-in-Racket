@@ -111,7 +111,8 @@
 (define updated (cons (first list-of-functions) `(place-image BLOCK 150 150)))
 
 
-(define my-scene
+(define (OBJECTS state)
+  (define objects (MY_FINAL_SCENE SCENE my-struct))
   (place-image BALL
                   (state-x a-ball)
                   (state-y a-ball)
@@ -127,9 +128,9 @@
                                                          (place-image BAR
                                                                       (state-x bar)
                                                                       (state-y bar)
-                                                                      SCENE))))))
+                                                                      objects))))))
 
-(define my-struct (MAKE-STRUCTURE `(75 125) 3 10))
+(define my-struct (MAKE-STRUCTURE `(85 125) 3 10))
 
 (define (MY_FINAL_SCENE a-scene structure)
   (cond
@@ -137,9 +138,6 @@
     [#t (MY_FINAL_SCENE (place-image BLOCK (caar structure) (first (rest (first structure))) a-scene)
                         (rest structure))]
     ))
-
-(define (OBJECTS state)
-  (MY_FINAL_SCENE my-scene my-struct))
 
 (big-bang a-ball
   (on-tick UPDATE_POSITION 1/120)
