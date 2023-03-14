@@ -1,4 +1,4 @@
-#lang racket/base
+#lang racket
 (require 2htdp/image)
 (require 2htdp/universe)
 
@@ -15,18 +15,17 @@
 (define BAR (rectangle 50 5 "solid" "green"))
 (define BLOCK (rectangle 30 7 "solid" "green"))
 
-     ; start must be a list of 2 elements where the first is the position on x and second position on y
-(define (MAKE-STRUCTURE start lines columns) ; lines give the number of rows we ask for and similar with columns
+(define (MAKE-STRUCTURE start lines columns)
   
-  (define (iterations HOW_MANY_TIMES lst) ; creates an ordered list to help us iterate a certain number of times 
-    (cond                                 ; based on lines and columns
+  (define (iterations HOW_MANY_TIMES lst)
+    (cond
       [(= HOW_MANY_TIMES 1) (cons HOW_MANY_TIMES lst)]
       [#t (iterations (- HOW_MANY_TIMES 1) (cons HOW_MANY_TIMES lst))]))
   
-  (define NUMBER-OF-ROWS (iterations lines `()))        ; creates the ordered list for rows
-  (define NUMBER-OF-COLUMNS (iterations columns `()))   ; creates the ordered list for columns
+  (define NUMBER-OF-ROWS (iterations lines `()))
+  (define NUMBER-OF-COLUMNS (iterations columns `()))
   
-  (define (MAKE-LINE start)                 ; creates a full row at a distance of 35 on x
+  (define (MAKE-LINE start)  
     (for/list [(i NUMBER-OF-COLUMNS)]
       (cond
         [(= i 1) start]
@@ -34,12 +33,13 @@
         )
       )
     )
-  (for/list [(i NUMBER-OF-ROWS)]            ; uses MAKE-LINE to create multiple rows at a distance of 13 on y
-    (cond
-      [(= i 1) (MAKE-LINE start)]
-      [#t (MAKE-LINE (cons (first start) (cons (+ (first (rest start)) (* (list-ref NUMBER-OF-ROWS (- i 2)) 13)) '())))]
-      )
-    )
+  (apply append (for/list [(i NUMBER-OF-ROWS)]
+                  (cond
+                    [(= i 1) (MAKE-LINE start)]
+                    [#t (MAKE-LINE (cons (first start) (cons (+ (first (rest start)) (* (list-ref NUMBER-OF-ROWS (- i 2)) 13)) '())))]
+                    )
+                  )
+         )
   )
 
 (define (UPDATE_POSITION ball)
@@ -101,29 +101,45 @@
 
 (define (MOVE w a-key)
   (cond
-    [(key=? a-key "left") (set-state-x! bar (- (state-x bar) 20))]
-    [(key=? a-key "right") (set-state-x! bar (+ (state-x bar) 20))]
+    [(key=? a-key "left") (set-state-x! bar (- (state-x bar) 16))]
+    [(key=? a-key "right") (set-state-x! bar (+ (state-x bar) 15))]
     [#t w] ; order-free checking
     )
   )
 
-(define (OBJECTS state)
+(define list-of-functions `(,(place-image BLOCK 23 21 (place-image BLOCK 123 16 SCENE))))
+(define updated (cons (first list-of-functions) `(place-image BLOCK 150 150)))
+
+
+(define my-scene
   (place-image BALL
-               (state-x a-ball)
-               (state-y a-ball)
-               (place-image VERTICAL_RECTANGLE
-                            5
-                            255
-                            (place-image VERTICAL_RECTANGLE
-                                         495
-                                         255
-                                         (place-image HORIZONTAL_RECTANGLE
-                                                      250
-                                                      5
-                                                      (place-image BAR
-                                                                   (state-x bar)
-                                                                   (state-y bar)
-                                                                   SCENE))))))
+                  (state-x a-ball)
+                  (state-y a-ball)
+                  (place-image VERTICAL_RECTANGLE
+                               5
+                               255
+                               (place-image VERTICAL_RECTANGLE
+                                            495
+                                            255
+                                            (place-image HORIZONTAL_RECTANGLE
+                                                         250
+                                                         5
+                                                         (place-image BAR
+                                                                      (state-x bar)
+                                                                      (state-y bar)
+                                                                      SCENE))))))
+
+(define my-struct (MAKE-STRUCTURE `(75 125) 3 10))
+
+(define (MY_FINAL_SCENE a-scene structure)
+  (cond
+    [(empty? structure) a-scene]
+    [#t (MY_FINAL_SCENE (place-image BLOCK (caar structure) (first (rest (first structure))) a-scene)
+                        (rest structure))]
+    ))
+
+(define (OBJECTS state)
+  (MY_FINAL_SCENE my-scene my-struct))
 
 (big-bang a-ball
   (on-tick UPDATE_POSITION 1/120)
