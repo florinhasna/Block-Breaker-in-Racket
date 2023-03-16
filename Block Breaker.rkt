@@ -1,21 +1,25 @@
 #lang racket
 (require 2htdp/image)
 (require 2htdp/universe)
+(require racket/trace)
 
 ;; coordinates struct of x and y, they can be maximum 500
 ;; vx is velocity of x and vy is velocity of y
 (struct state (x y vx vy) #:mutable #:transparent)
-(define a-ball (state 250 300 0 2))
+(define a-ball (state 250 300 2 -2))
 (define bar (state 250 485 0 0))
+(define ver-bar (state 5 255 0 0))
+(define ver-bar1 (state 495 255 0 0))
+(define hor-bar (state 250 5 0 0))
 
 (define SCENE (empty-scene 500 500 "black"))
 (define VERTICAL_RECTANGLE (rectangle 1 500 "solid" "red"))
 (define HORIZONTAL_RECTANGLE (rectangle 490 1 "solid" "red"))
 (define BALL (circle 6 "solid" "green"))
 (define BAR (rectangle 50 5 "solid" "green"))
-(define BLOCK (rectangle 30 7 "solid" "green"))
+(define BLOCK (rectangle 30 8 "solid" "green"))
 
-(define (MAKE-STRUCTURE start lines columns)
+(define (MAKE_STRUCTURE start lines columns)
   
   (define (iterations HOW_MANY_TIMES lst)
     (cond
@@ -106,38 +110,61 @@
     [#t w] ; order-free checking
     )
   )
+(define my-struct (list->vector (MAKE_STRUCTURE `(85 125) 10 10)))
 
-(define list-of-functions `(,(place-image BLOCK 23 21 (place-image BLOCK 123 16 SCENE))))
-(define updated (cons (first list-of-functions) `(place-image BLOCK 150 150)))
-
+(define (get-index1 elem a-vector i)
+  (cond
+    [(>= i (vector-length a-vector)) #f]
+    [(eq? elem (vector-ref a-vector i)) i]
+    [#t (get-index1 elem a-vector (+ i 1))]))
+(define (get-index elem a-vector) (get-index1 elem a-vector 0))
 
 (define (OBJECTS state)
-  (define objects (MY_FINAL_SCENE SCENE my-struct))
+  (define ball-pos (cons (state-x a-ball) (cons (state-y a-ball) '())))
+  (define (hits-block? ball block)
+    (cond
+      [(empty? block) #f]
+      [(and (<= (first ball) (+ (first block) 18))
+            (>= (first ball) (- (first block) 18))
+            (<= (second ball) (+ (second block) 7))
+            (>= (second ball) (- (second block) 7))) #t]
+      [#t #f]))
+  (define (MAP_BALL struct)
+    (for/vector ([i struct])
+      (cond
+        [(hits-block? ball-pos i) (vector-set! struct (get-index i struct) '())]
+        [#t i])))
+  (define objects (MY_FINAL_SCENE SCENE (vector->list (MAP_BALL my-struct))))
   (place-image BALL
-                  (state-x a-ball)
-                  (state-y a-ball)
-                  (place-image VERTICAL_RECTANGLE
-                               5
-                               255
-                               (place-image VERTICAL_RECTANGLE
-                                            495
-                                            255
-                                            (place-image HORIZONTAL_RECTANGLE
-                                                         250
-                                                         5
-                                                         (place-image BAR
-                                                                      (state-x bar)
-                                                                      (state-y bar)
-                                                                      objects))))))
+               (state-x a-ball)
+               (state-y a-ball)
+               (place-image VERTICAL_RECTANGLE
+                            (state-x ver-bar)
+                            (state-y ver-bar)
+                            (place-image VERTICAL_RECTANGLE
+                                         (state-x ver-bar1)
+                                         (state-y ver-bar1)
+                                         (place-image HORIZONTAL_RECTANGLE
+                                                      (state-x hor-bar)
+                                                      (state-y hor-bar)
+                                                      (place-image BAR
+                                                                   (state-x bar)
+                                                                   (state-y bar)
+                                                                   objects))))))
 
-(define my-struct (MAKE-STRUCTURE `(85 125) 3 10))
+
 
 (define (MY_FINAL_SCENE a-scene structure)
   (cond
     [(empty? structure) a-scene]
+    [(void? (first structure)) (MY_FINAL_SCENE a-scene (rest structure))]
+    [(empty? (first structure)) (MY_FINAL_SCENE a-scene (rest structure))]
     [#t (MY_FINAL_SCENE (place-image BLOCK (caar structure) (first (rest (first structure))) a-scene)
                         (rest structure))]
     ))
+
+;(define (MAP_BALL structure)
+ ; (define ball-pos (list (state-x a-ball) (state-y a-ball))))
 
 (big-bang a-ball
   (on-tick UPDATE_POSITION 1/120)
