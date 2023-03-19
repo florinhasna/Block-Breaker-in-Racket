@@ -7,7 +7,7 @@
 ;; vx is velocity of x and vy is velocity of y
 (struct state (x y vx vy) #:mutable #:transparent)
 (define a-ball (state 250 300 -1 2))
-(define bottom-bar (state 250 485 20 0))
+(define bottom-bar (state 250 485 35 0))
 (define left-wall (state 5 255 0 0))
 (define right-wall (state 495 255 0 0))
 (define ceiling (state 250 5 0 0))
