@@ -6,12 +6,13 @@
 ;; coordinates struct of x and y, they can be maximum 500
 ;; vx is velocity of x and vy is velocity of y
 (struct state (x y vx vy) #:mutable #:transparent)
-(define a-ball (state 250 300 -1 2))
-(define bottom-bar (state 250 485 35 0))
+(define a-ball (state 250 300 2 -1))
+(define bottom-bar (state 250 485 20 0))
 (define left-wall (state 5 255 0 0))
 (define right-wall (state 495 255 0 0))
 (define ceiling (state 250 5 0 0))
 
+; lets now define our objects
 (define SCENE (empty-scene 500 500 "black"))
 (define VERTICAL_RECTANGLE (rectangle 1 500 "solid" "red"))
 (define HORIZONTAL_RECTANGLE (rectangle 490 1 "solid" "red"))
@@ -22,7 +23,8 @@
 ; creates a list of pairs, each pair has 2 elements representing the position-x and position-y of a block on the scene
 (define (MAKE_STRUCTURE start lines columns)
   
-  (define NUMBER-OF-ROWS (rest (range (+ lines 1))))      ; defined two lists to iterate the number of line times and column times
+  ; defined two lists to iterate the number of line times and column times
+  (define NUMBER-OF-ROWS (rest (range (+ lines 1))))      
   (define NUMBER-OF-COLUMNS (rest (range (+ columns 1))))
 
   ; creates a list of pairs representing a line of blocks on the scene
@@ -35,7 +37,7 @@
       )
     )
 
-  ; creates the number the rows using MAKE-LINE
+  ; creates the number of rows using MAKE-LINE
   (apply append (for/list [(i NUMBER-OF-ROWS)]
                   (cond
                     [(= i 1) (MAKE-LINE start)]
@@ -46,53 +48,84 @@
   
   ) ; end of MAKE_STRUCTURE
 
-; making the ball move
+; making the ball move by adding velocity to the position with every tick
+; bounce the ball if it is the case
 (define (UPDATE_POSITION ball)
   (set-state-x! a-ball (+ (state-x a-ball) (state-vx a-ball)))
   (set-state-y! a-ball (+ (state-y a-ball) (state-vy a-ball)))
   (BOUNCE)
   )
 
-(define (APPLY_VELOCITY)
+; a function that makes the ball bounce when hits the left wall
+(define (APPLY_VELOCITY_FROM_LEFT)
   (cond
-    [(and [positive? (state-vx a-ball)]
-          [positive? (state-vy a-ball)]
-          [< (state-y a-ball) (+ (state-y bottom-bar) 8.5)]
-          [> (state-y a-ball) (- (state-x bottom-bar) 8.5)]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
-    [(and [negative? (state-vx a-ball)]
-          [positive? (state-vy a-ball)]
-          [< (state-y a-ball) (+ (state-y bottom-bar) 8.5)]
-          [> (state-x a-ball) (- (state-x bottom-bar) 8.5)]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
-    
     [(and [equal? (state-vx a-ball) 0]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
-    [(and [equal? (state-vy a-ball) 0]) (set-state-vx! a-ball (* (state-vx a-ball) -1))]
-    [(and [positive? (state-vx a-ball)]
+    [(and [negative? (state-vx a-ball)]
+          [negative? (state-vy a-ball)]) (set-state-vx! a-ball (* (state-vx a-ball) -1))]
+    [(and [negative? (state-vx a-ball)]
           [positive? (state-vy a-ball)]) (set-state-vx! a-ball (* (state-vx a-ball) -1))]
-    [(and [negative? (state-vx a-ball)]
-          [negative? (state-vy a-ball)]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
-    [(and [negative? (state-vx a-ball)]
+    )
+  )
+
+; a function that makes the ball bounce when hits the right wall
+(define (APPLY_VELOCITY_FROM_RIGHT)
+  (cond
+    [(and [equal? (state-vx a-ball) 0]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
+    [(and [positive? (state-vx a-ball)]
           [positive? (state-vy a-ball)]) (set-state-vx! a-ball (* (state-vx a-ball) -1))]
     [(and [positive? (state-vx a-ball)]
           [negative? (state-vy a-ball)]) (set-state-vx! a-ball (* (state-vx a-ball) -1))]
     )
   )
 
+; a function that makes the ball bounce when hits the top bar
+(define (APPLY_VELOCITY_FROM_CEILING)
+  (cond
+    [(and [equal? (state-vy a-ball) 0]) (set-state-vx! a-ball (* (state-vx a-ball) -1))]
+    [(and [negative? (state-vx a-ball)]
+          [negative? (state-vy a-ball)]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
+    [(and [positive? (state-vx a-ball)]
+          [negative? (state-vy a-ball)]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
+    )
+  )
+
+; a function that makes the ball bounce when hits the bottom bar
+(define (APPLY_VELOCITY_FROM_BAR)
+  (cond
+    [(and [equal? (state-vy a-ball) 0]) (set-state-vx! a-ball (* (state-vx a-ball) -1))]
+    [(and [positive? (state-vx a-ball)]
+          [positive? (state-vy a-ball)]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
+    [(and [negative? (state-vx a-ball)]
+          [positive? (state-vy a-ball)]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
+    )
+  )
+
+; this function checks the position of the ball when it needs to bounce
+; and bounces it accordingly
 (define (BOUNCE)
   (define ball-pos (cons (state-x a-ball) (cons (state-y a-ball) '())))
   (cond
-    [(and (< (second ball-pos) (+ (state-y left-wall) 250))
-          (> (second ball-pos) (- (state-y left-wall) 250))
-          (< (first ball-pos) (+ (state-x left-wall) 6.5))) (APPLY_VELOCITY)]
-    [(and (< (second ball-pos) (+ (state-y right-wall) 250))
-          (> (second ball-pos) (- (state-y right-wall) 250))
-          (> (first ball-pos) (- (state-x right-wall) 6.5))) (APPLY_VELOCITY)]
-    [(and (< (first ball-pos) (+ (state-x ceiling) 250))
-          (> (first ball-pos) (- (state-x ceiling) 250))
-          (< (second ball-pos) (+ (state-y ceiling) 6.5))) (APPLY_VELOCITY)]
-    [(and (< (second ball-pos) (+ (state-y bottom-bar) 8.5))
-          (> (second ball-pos) (- (state-y bottom-bar) 8.5))
-          (< (first ball-pos) (+ (state-x bottom-bar) 31))
-          (> (first ball-pos) (- (state-x bottom-bar) 31))) (APPLY_VELOCITY)]))
+    ; condition for when the ball hits the left wall
+    [(and (<= (second ball-pos) (+ (state-y left-wall) 250))
+          (>= (second ball-pos) (- (state-y left-wall) 250))
+          (<= (first ball-pos) (+ (state-x left-wall) 6.5))) (APPLY_VELOCITY_FROM_LEFT)]
+
+    ;  condition for when the ball hits the right wall
+    [(and (<= (second ball-pos) (+ (state-y right-wall) 250))
+          (>= (second ball-pos) (- (state-y right-wall) 250))
+          (>= (first ball-pos) (- (state-x right-wall) 6.5))) (APPLY_VELOCITY_FROM_RIGHT)]
+
+    ; condition for when the ball hits the top bar
+    [(and (<= (first ball-pos) (+ (state-x ceiling) 250))
+          (>= (first ball-pos) (- (state-x ceiling) 250))
+          (<= (second ball-pos) (+ (state-y ceiling) 6.5))) (APPLY_VELOCITY_FROM_CEILING)]
+
+    ; condition for when the ball hits the bottom bar
+    [(and (<= (second ball-pos) (+ (state-y bottom-bar) 8.5))
+          (>= (second ball-pos) (- (state-y bottom-bar) 8.5))
+          (<= (first ball-pos) (+ (state-x bottom-bar) 31))
+          (>= (first ball-pos) (- (state-x bottom-bar) 31))) (APPLY_VELOCITY_FROM_BAR)]
+    ))
 
 ; make the bar move using left and right arrows
 (define (MOVE w a-key)
@@ -103,17 +136,24 @@
     )
   )
 
-(define my-struct (list->vector (MAKE_STRUCTURE `(85 125) 5 10)))
+; using the function created above, creates a list of pairs which are positions of the blocks
+; then converts it to a vector because they are mutable and we can remove the blocks from the scene
+(define list-struct (MAKE_STRUCTURE `(85 125) 5 10))
+(define my-struct (list->vector list-struct))
 
+; this function checks if the element is member of the vector and returns its index number
 (define (get-index1 elem a-vector i)
   (cond
     [(>= i (vector-length a-vector)) #f]
     [(eq? elem (vector-ref a-vector i)) i]
     [#t (get-index1 elem a-vector (+ i 1))]))
+; simplify the above by giving i=0
 (define (get-index elem a-vector) (get-index1 elem a-vector 0))
 
 (define (OBJECTS state)
   (define ball-position (cons (state-x a-ball) (cons (state-y a-ball) '())))
+
+  ; created this function to check wether or not the ball is colliding with a block
   (define (hits-block? ball block)
     (cond
       [(empty? block) #f]
@@ -122,13 +162,54 @@
             (<= (second ball) (+ (second block) 10))
             (>= (second ball) (- (second block) 10))) #t]
       [#t #f]))
+
+    ; this function uses hits_block? to check if it has collided, then what side of the block the ball touched
+    ; bounces the ball accordingly and removes the block from the scene by setting the vector element to an empty list
     (define (MAP_BALL struct)
       (for/vector ([i struct])
         (cond
-          [(hits-block? ball-position i) (vector-set! struct (get-index i struct) '())
-                                         (APPLY_VELOCITY)]
+          [(hits-block? ball-position i)
+           (cond
+             ; condition for when hits the left side of the block
+             [(and (>= (first ball-position) (- (first i) 18))
+                   (<= (first ball-position) (- (first i) 10))
+                   (<= (second ball-position) (+ (second i) 10))
+                   (>= (second ball-position) (- (second i) 10)))
+              (APPLY_VELOCITY_FROM_RIGHT)]
+             
+             ; condition for when it hits the right side of the block
+             [(and (>= (first ball-position) (+ (first i) 10))
+                   (<= (first ball-position) (+ (first i) 18))
+                   (<= (second ball-position) (+ (second i) 10))
+                   (>= (second ball-position) (- (second i) 10)))
+              (APPLY_VELOCITY_FROM_LEFT)]
+
+             ; condition for when it hits the lower side of the block
+             [(and (>= (first ball-position) (- (first i) 18))
+                   (<= (first ball-position) (+ (first i) 18))
+                   (<= (second ball-position) (+ (second i) 10))
+                   (>= (second ball-position) (+ (second i) 5)))
+              (APPLY_VELOCITY_FROM_CEILING)]
+
+             ; condition for when it hits the upper side of the block
+             [(and (>= (first ball-position) (- (first i) 18))
+                   (<= (first ball-position) (+ (first i) 18))
+                   (>= (second ball-position) (- (second i) 10))
+                   (<= (second ball-position) (- (second i) 5)))
+              (APPLY_VELOCITY_FROM_BAR)]
+             )
+           
+           ; now lets remove the block that has been hit
+           (vector-set! struct (get-index i struct) '())]
+
+          ; else, means it hasn't touched the block and returns i as it is
           [#t i])))
+
+    ; by converting the vector back to a list, creates the scene with the blocks placed on it
+    ; and it does it everytime the vector gets updated so it creates the scene without the block that has been touched
     (define objects (MY_FINAL_SCENE SCENE (vector->list (MAP_BALL my-struct))))
+
+    ; place all not removable objects on the scene of blocks
     (place-image BALL
                  (state-x a-ball)
                  (state-y a-ball)
@@ -147,7 +228,8 @@
                                                                    objects))))))
 
 
-
+; this function returns the placed blocks on the scene using the positions created in MAKE_STRUCTURE
+; it is a recursion that when the first element is void? or empty? it removes that element and applies it on the others
 (define (MY_FINAL_SCENE a-scene structure)
   (cond
     [(empty? structure) a-scene]
@@ -157,8 +239,9 @@
                         (rest structure))]
     ))
 
+; big-bang displays the created world
 (big-bang a-ball
-  (on-tick UPDATE_POSITION 1/120)
-  (to-draw OBJECTS)
-  (on-key MOVE)
+  (on-tick UPDATE_POSITION 1/120) ; get UPDATE_POSITION on-tick. The clock ticks at a rate of 120 times per second
+  (to-draw OBJECTS) ; draws the image
+  (on-key MOVE) ; configures the movement of the bottom bar
   )
