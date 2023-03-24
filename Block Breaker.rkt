@@ -1,13 +1,12 @@
 #lang racket
 (require 2htdp/image)
 (require 2htdp/universe)
-(require racket/trace)
 
 ;; coordinates struct of x and y, they can be maximum 500
 ;; vx is velocity of x and vy is velocity of y
 (struct state (x y vx vy) #:mutable #:transparent)
-(define a-ball (state 250 300 2 -1))
-(define bottom-bar (state 250 485 20 0))
+(define a-ball (state 250 300 -2 1))
+(define bottom-bar (state 250 485 35 0))
 (define left-wall (state 5 255 0 0))
 (define right-wall (state 495 255 0 0))
 (define ceiling (state 250 5 0 0))
@@ -19,6 +18,10 @@
 (define BALL (circle 6 "solid" "green"))
 (define BAR (rectangle 50 5 "solid" "green"))
 (define BLOCK (rectangle 30 8 "solid" "green"))
+
+;; ----------------------------------------------------------------------------------------------------------------------------
+;; ------------------------------------------------- HELPER FUNCTIONS SECTION !!! ---------------------------------------------
+;; ----------------------------------------------------------------------------------------------------------------------------
 
 ; creates a list of pairs, each pair has 2 elements representing the position-x and position-y of a block on the scene
 (define (MAKE_STRUCTURE start lines columns)
@@ -45,8 +48,85 @@
                     )
                   )
          )
-  
   ) ; end of MAKE_STRUCTURE
+
+; created this function to check wether or not the ball is colliding with a block
+(define (hits-block? ball block)
+  (cond
+    [(empty? block) #f]
+    [(and (<= (first ball) (+ (first block) 18))
+          (>= (first ball) (- (first block) 18))
+          (<= (second ball) (+ (second block) 10))
+          (>= (second ball) (- (second block) 10))) #t]
+      [#t #f]))
+
+(define (find-corners a-block)
+  (cond
+    [(not (empty? a-block)) (define left-margin (- (first a-block) 15)) ; left margin of the block
+                            (define right-margin (+ (first a-block) 15)) ; right margin of the block
+                            (define upper-margin (- (second a-block) 4)) ; upper margin of the block
+                            (define lower-margin (+ (second a-block) 4)) ; lower margin of the block
+                              (append `((,(- (+ left-margin 2) 6) ,(- (+ upper-margin 2) 6)))
+                                      `((,(- (+ left-margin 2) 6) ,(+ (- lower-margin 2) 6)))
+                                      `((,(+ (- right-margin 2) 6) ,(- (+ upper-margin 2) 6)))
+                                      `((,(+ (- right-margin 2) 6) ,(+ (- lower-margin 2) 6))))]
+    [#t #f])
+  )
+
+  (define (hits-corner? ball corners)
+    (cond
+      [(empty? corners) #f]
+      [(and [>= (first ball) (caar corners)]
+            [<= (first ball) (+ (caar corners) 2)]
+            [>= (second ball) (second (first corners))]
+            [<= (second ball) (+ (second (first corners)) 2)])
+       "top-left"]
+      [(and [>= (first ball) (caar corners)]
+          [<= (first ball) (+ (caar corners) 2)]
+          [<= (second ball) (second (first corners))]
+          [>= (second ball) (- (second (first corners)) 2)])
+       "bottom-left"]
+      [(and [<= (first ball) (caar corners)]
+            [>= (first ball) (- (caar corners) 2)]
+            [>= (second ball) (second (first corners))]
+            [<= (second ball) (+ (second (first corners)) 2)])
+       "top-right"]
+      [(and [>= (first ball) (caar corners)]
+            [<= (first ball) (- (caar corners) 2)]
+            [>= (second ball) (second (first corners))]
+            [<= (second ball) (- (second (first corners)) 2)])
+       "bottom-right"]
+      [#t (hits-corner? ball (rest corners))]
+      ))
+
+; this function checks if the element is member of the vector and returns its index number
+(define (get-index1 elem a-vector i)
+  (cond
+    [(>= i (vector-length a-vector)) #f]
+    [(eq? elem (vector-ref a-vector i)) i]
+    [#t (get-index1 elem a-vector (+ i 1))]))
+; simplify the above by giving i=0
+(define (get-index elem a-vector) (get-index1 elem a-vector 0))
+
+; using the function created above, creates a list of pairs which are positions of the blocks
+; then converts it to a vector because they are mutable and we can remove the blocks from the scene
+(define list-struct (MAKE_STRUCTURE `(85 125) 5 10))
+(define my-struct (list->vector list-struct))
+
+; this function returns the placed blocks on the scene using the positions created in MAKE_STRUCTURE
+; it is a recursion that when the first element is void? or empty? it removes that element and applies it on the others
+(define (MY_FINAL_SCENE a-scene structure)
+  (cond
+    [(empty? structure) a-scene]
+    [(void? (first structure)) (MY_FINAL_SCENE a-scene (rest structure))]
+    [(empty? (first structure)) (MY_FINAL_SCENE a-scene (rest structure))]
+    [#t (MY_FINAL_SCENE (place-image BLOCK (caar structure) (first (rest (first structure))) a-scene)
+                        (rest structure))]
+    ))
+
+;; ----------------------------------------------------------------------------------------------------------------------------
+;; ---------------------------------------------- BALL AND BAR MOVEMENT SECTION !!! -------------------------------------------
+;; ----------------------------------------------------------------------------------------------------------------------------
 
 ; making the ball move by adding velocity to the position with every tick
 ; bounce the ball if it is the case
@@ -91,8 +171,10 @@
 
 ; a function that makes the ball bounce when hits the bottom bar
 (define (APPLY_VELOCITY_FROM_BAR)
+  (define randomiser (string->number (real->decimal-string (/ (random 10 30) 10))))
   (cond
-    [(and [equal? (state-vy a-ball) 0]) (set-state-vx! a-ball (* (state-vx a-ball) -1))]
+    [(and [equal? (state-vx a-ball) 0]) (set-state-vy! a-ball (* (state-vy a-ball) -1))
+                                        (set-state-vx! a-ball (+ (* (state-vx a-ball) -1) randomiser))]
     [(and [positive? (state-vx a-ball)]
           [positive? (state-vy a-ball)]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
     [(and [negative? (state-vx a-ball)]
@@ -130,46 +212,76 @@
 ; make the bar move using left and right arrows
 (define (MOVE w a-key)
   (cond
-    [(key=? a-key "left") (set-state-x! bottom-bar (- (state-x bottom-bar) (state-vx bottom-bar)))]
-    [(key=? a-key "right") (set-state-x! bottom-bar (+ (state-x bottom-bar) (state-vx bottom-bar)))]
-    [#t w] ; order-free checking
+    [(key=? a-key "left")
+     (if [<= (state-x bottom-bar) 55]
+         (set-state-x! bottom-bar 30)
+         (set-state-x! bottom-bar (- (state-x bottom-bar) (state-vx bottom-bar))))]
+    [(key=? a-key "right")
+     (if [>= (state-x bottom-bar) 445]
+         (set-state-x! bottom-bar 470)
+         (set-state-x! bottom-bar (+ (state-x bottom-bar) (state-vx bottom-bar))))]
     )
+  );; 470 on right ;; 30 on left
+
+;; ----------------------------------------------------------------------------------------------------------------------------
+;; ------------------------------------------------ SCENE AND OBJECT DRAWING !!! ----------------------------------------------
+;; ----------------------------------------------------------------------------------------------------------------------------
+
+(define (MAIN_MENU state)
+  (define block-text (text/font "BLOCK" 40 "green" #f 'decorative 'slant 'bold #f))
+  (define breaker-text (text/font "BREAKER" 50 "green" #f 'decorative 'slant 'bold #f))
+  (define start (text "Start" 30 "green"))
+  (define settings (text "Settings" 30 "green"))
+  (define exit (text "Exit" 30 "green"))
+  (define surroundings (rectangle 150 50 "outline" "green"))
+  
+  (place-image block-text
+               180
+               80
+               (place-image breaker-text
+                            280
+                            130
+                            (place-image surroundings
+                                         250
+                                         240
+                                         (place-image surroundings
+                                                      250
+                                                      300
+                                                      (place-image surroundings
+                                                                   250
+                                                                   360
+                                                                   (place-image start
+                                                                                250
+                                                                                240
+                                                                                (place-image settings
+                                                                                             250
+                                                                                             300
+                                                                                             (place-image exit
+                                                                                                          250
+                                                                                                          360
+                                                                                                          SCENE))))))))
   )
 
-; using the function created above, creates a list of pairs which are positions of the blocks
-; then converts it to a vector because they are mutable and we can remove the blocks from the scene
-(define list-struct (MAKE_STRUCTURE `(85 125) 5 10))
-(define my-struct (list->vector list-struct))
-
-; this function checks if the element is member of the vector and returns its index number
-(define (get-index1 elem a-vector i)
-  (cond
-    [(>= i (vector-length a-vector)) #f]
-    [(eq? elem (vector-ref a-vector i)) i]
-    [#t (get-index1 elem a-vector (+ i 1))]))
-; simplify the above by giving i=0
-(define (get-index elem a-vector) (get-index1 elem a-vector 0))
-
-(define (OBJECTS state)
+(define (PLAYGROUND state)
   (define ball-position (cons (state-x a-ball) (cons (state-y a-ball) '())))
-
-  ; created this function to check wether or not the ball is colliding with a block
-  (define (hits-block? ball block)
-    (cond
-      [(empty? block) #f]
-      [(and (<= (first ball) (+ (first block) 18))
-            (>= (first ball) (- (first block) 18))
-            (<= (second ball) (+ (second block) 10))
-            (>= (second ball) (- (second block) 10))) #t]
-      [#t #f]))
-
+  
     ; this function uses hits_block? to check if it has collided, then what side of the block the ball touched
     ; bounces the ball accordingly and removes the block from the scene by setting the vector element to an empty list
     (define (MAP_BALL struct)
       (for/vector ([i struct])
+        (define my-corners (find-corners i))
         (cond
           [(hits-block? ball-position i)
            (cond
+             [(eq? (hits-corner? ball-position my-corners) "top-left") (set-state-vx! a-ball (* (state-vx a-ball) -1))
+                                                                       (set-state-vy! a-ball (* (state-vy a-ball) -1))]
+             [(eq? (hits-corner? ball-position my-corners) "bottom-left") (set-state-vx! a-ball (* (state-vx a-ball) -1))
+                                                                          (set-state-vy! a-ball (* (state-vy a-ball) -1))]
+             [(eq? (hits-corner? ball-position my-corners) "top-right") (set-state-vx! a-ball (* (state-vx a-ball) -1))
+                                                                        (set-state-vy! a-ball (* (state-vy a-ball) -1))]
+             [(eq? (hits-corner? ball-position my-corners) "bottom-right") (set-state-vx! a-ball (* (state-vx a-ball) -1))
+                                                                           (set-state-vy! a-ball (* (state-vy a-ball) -1))]
+             
              ; condition for when hits the left side of the block
              [(and (>= (first ball-position) (- (first i) 18))
                    (<= (first ball-position) (- (first i) 10))
@@ -225,23 +337,26 @@
                                                       (place-image BAR
                                                                    (state-x bottom-bar)
                                                                    (state-y bottom-bar)
-                                                                   objects))))))
+                                                                   objects)))))
+
+  ) ;; end of PLAYGROUND
 
 
-; this function returns the placed blocks on the scene using the positions created in MAKE_STRUCTURE
-; it is a recursion that when the first element is void? or empty? it removes that element and applies it on the others
-(define (MY_FINAL_SCENE a-scene structure)
+(define (mouse-handler world x y click)
   (cond
-    [(empty? structure) a-scene]
-    [(void? (first structure)) (MY_FINAL_SCENE a-scene (rest structure))]
-    [(empty? (first structure)) (MY_FINAL_SCENE a-scene (rest structure))]
-    [#t (MY_FINAL_SCENE (place-image BLOCK (caar structure) (first (rest (first structure))) a-scene)
-                        (rest structure))]
-    ))
+    [(and (equal? click "button-down") ; Left mouse button was clicked
+          (<= x 325) (>= x 175)
+          (<= y 265) (>= y 215))
+     (big-bang PLAYGROUND
+       (on-tick UPDATE_POSITION 1/120) ; get UPDATE_POSITION on-tick. The clock ticks at a rate of 120 times per second
+       (to-draw PLAYGROUND) ; draws the image
+       (on-key MOVE) ; configures the movement of the bottom bar
+       )]
+    )
+  )
 
 ; big-bang displays the created world
-(big-bang a-ball
-  (on-tick UPDATE_POSITION 1/120) ; get UPDATE_POSITION on-tick. The clock ticks at a rate of 120 times per second
-  (to-draw OBJECTS) ; draws the image
-  (on-key MOVE) ; configures the movement of the bottom bar
+(big-bang MAIN_MENU
+  (to-draw MAIN_MENU) ; draws the image
+  (on-mouse mouse-handler)
   )
