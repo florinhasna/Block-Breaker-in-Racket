@@ -1,11 +1,31 @@
 #lang racket
 (require 2htdp/image)
 (require 2htdp/universe)
+(require lang/posn)
+(require json)
+
+;(define input-config (open-input-file "config.json"))
+;(define config (string->jsexpr (read-line input-config)))
+;(define output-config (open-output-file "config.json" #:exists 'replace))
+
+;(define difficulty-instruction (make-vector 1))
+(define theme-instruction (make-vector 1))
+;(define music-instruction (make-vector 1))
+;(vector-set! difficulty-instruction 0 (hash-ref config 'Difficulty))
+(vector-set! theme-instruction 0 "green")
+;(vector-set! music-instruction 0 (hash-ref config 'Music))
+
+;(define file-to-write
+;  (string-append "{"
+;                 " \"Difficulty\":" (vector-ref difficulty-instruction 0)
+;                 " \"Theme\":" (vector-ref theme-instruction 0)
+;                 " \"Music\":" (vector-ref music-instruction 0)
+;                 "}"))
 
 ;; coordinates struct of x and y, they can be maximum 500
 ;; vx is velocity of x and vy is velocity of y
 (struct state (x y vx vy) #:mutable #:transparent)
-(define a-ball (state 250 300 -2 1))
+(define a-ball (state 250 300 0 3))
 (define bottom-bar (state 250 485 35 0))
 (define left-wall (state 5 255 0 0))
 (define right-wall (state 495 255 0 0))
@@ -15,9 +35,10 @@
 (define SCENE (empty-scene 500 500 "black"))
 (define VERTICAL_RECTANGLE (rectangle 1 500 "solid" "red"))
 (define HORIZONTAL_RECTANGLE (rectangle 490 1 "solid" "red"))
-(define BALL (circle 6 "solid" "green"))
-(define BAR (rectangle 50 5 "solid" "green"))
-(define BLOCK (rectangle 30 8 "solid" "green"))
+(define BALL (circle 6 "solid" (vector-ref theme-instruction 0)))
+(define BAR (rectangle 50 5 "solid" (vector-ref theme-instruction 0)))
+(define BLOCK (rectangle 30 8 "solid" (vector-ref theme-instruction 0)))
+(define surroundings (rectangle 150 50 "outline" (vector-ref theme-instruction 0)))
 
 ;; ----------------------------------------------------------------------------------------------------------------------------
 ;; ------------------------------------------------- HELPER FUNCTIONS SECTION !!! ---------------------------------------------
@@ -131,9 +152,11 @@
 ; making the ball move by adding velocity to the position with every tick
 ; bounce the ball if it is the case
 (define (UPDATE_POSITION ball)
-  (set-state-x! a-ball (+ (state-x a-ball) (state-vx a-ball)))
-  (set-state-y! a-ball (+ (state-y a-ball) (state-vy a-ball)))
-  (BOUNCE)
+  (cond
+    [(eq? (vector-ref STATE-VECTOR 0) "start") (set-state-x! a-ball (+ (state-x a-ball) (state-vx a-ball)))
+                                         (set-state-y! a-ball (+ (state-y a-ball) (state-vy a-ball)))
+                                         (BOUNCE)]
+  )
   )
 
 ; a function that makes the ball bounce when hits the left wall
@@ -212,28 +235,29 @@
 ; make the bar move using left and right arrows
 (define (MOVE w a-key)
   (cond
-    [(key=? a-key "left")
-     (if [<= (state-x bottom-bar) 55]
-         (set-state-x! bottom-bar 30)
-         (set-state-x! bottom-bar (- (state-x bottom-bar) (state-vx bottom-bar))))]
-    [(key=? a-key "right")
-     (if [>= (state-x bottom-bar) 445]
-         (set-state-x! bottom-bar 470)
-         (set-state-x! bottom-bar (+ (state-x bottom-bar) (state-vx bottom-bar))))]
-    )
-  );; 470 on right ;; 30 on left
+    [(eq? (vector-ref STATE-VECTOR 0) "start") (cond
+                                           [(key=? a-key "left")
+                                            (if [<= (state-x bottom-bar) 55]
+                                                (set-state-x! bottom-bar 30)
+                                                (set-state-x! bottom-bar (- (state-x bottom-bar) (state-vx bottom-bar))))]
+                                           [(key=? a-key "right")
+                                            (if [>= (state-x bottom-bar) 445]
+                                                (set-state-x! bottom-bar 470)
+                                                (set-state-x! bottom-bar (+ (state-x bottom-bar) (state-vx bottom-bar))))]
+                                           )]
+                                         ));; 470 on right ;; 30 on left
 
 ;; ----------------------------------------------------------------------------------------------------------------------------
 ;; ------------------------------------------------ SCENE AND OBJECT DRAWING !!! ----------------------------------------------
 ;; ----------------------------------------------------------------------------------------------------------------------------
 
-(define (MAIN_MENU state)
-  (define block-text (text/font "BLOCK" 40 "green" #f 'decorative 'slant 'bold #f))
-  (define breaker-text (text/font "BREAKER" 50 "green" #f 'decorative 'slant 'bold #f))
-  (define start (text "Start" 30 "green"))
-  (define settings (text "Settings" 30 "green"))
-  (define exit (text "Exit" 30 "green"))
-  (define surroundings (rectangle 150 50 "outline" "green"))
+;; below there is created the main-menu scene
+(define (MAIN_MENU)
+  (define block-text (text/font "BLOCK" 40 (vector-ref theme-instruction 0) #f 'decorative 'slant 'bold #f))
+  (define breaker-text (text/font "BREAKER" 50 (vector-ref theme-instruction 0) #f 'decorative 'slant 'bold #f))
+  (define start (text "Start" 30 (vector-ref theme-instruction 0)))
+  (define settings (text "Settings" 30 (vector-ref theme-instruction 0)))
+  (define exit (text "Exit" 30 (vector-ref theme-instruction 0)))
   
   (place-image block-text
                180
@@ -262,7 +286,8 @@
                                                                                                           SCENE))))))))
   )
 
-(define (PLAYGROUND state)
+;; there is the playground, where the player has to break the blocks
+(define (PLAYGROUND)
   (define ball-position (cons (state-x a-ball) (cons (state-y a-ball) '())))
   
     ; this function uses hits_block? to check if it has collided, then what side of the block the ball touched
@@ -341,22 +366,129 @@
 
   ) ;; end of PLAYGROUND
 
+;; below the settings scene is created
+(define (SETTINGS)
+  (define settings (text/font "SETTINGS" 50 (vector-ref theme-instruction 0) #f 'decorative 'slant 'bold #f))
+  (define difficulty (text/font "Difficulty:" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
+  (define theme (text/font "Theme:" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
+  (define music (text/font "Music:" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
+  (define back (text/font "Go Back!" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
+  (define right-arrow (polygon (list (make-pulled-point 1/2 10 0 0 1/2 -10)
+                 (make-posn -5 10)
+                 (make-pulled-point 1/2 -10 30 0 1/2 10)
+                 (make-posn -5 -10))
+           "solid"
+           (vector-ref theme-instruction 0)))
+  (define left-arrow (polygon (list (make-pulled-point -1/2 -10 0 0 -1/2 10)
+                 (make-posn 5 -10)
+                 (make-pulled-point -1/2 10 -30 0 -1/2 -10)
+                 (make-posn 5 10))
+           "solid"
+           (vector-ref theme-instruction 0)))
+  (define diff-level (text/font "Medium" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
+  (define theme-pack (text/font "Florin" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
+  (define music-level (text/font "50" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
 
+  (define first-third (place-image settings
+                                   250
+                                   130
+                                   (place-image difficulty
+                                                150
+                                                230
+                                                (place-image theme
+                                                             150
+                                                             280
+                                                             (place-image music
+                                                                          150
+                                                                          330
+                                                                           (place-image surroundings
+                                                                                        250
+                                                                                        400
+                                                                                        (place-image back
+                                                                                                     250
+                                                                                                     400
+                                                                                                     SCENE)))))))
+  (define second-third (place-image right-arrow
+                                   430
+                                   230
+                                   (place-image right-arrow
+                                                430
+                                                280
+                                                (place-image right-arrow
+                                                             430
+                                                             330
+                                                             (place-image left-arrow
+                                                                          250
+                                                                          230
+                                                                          (place-image left-arrow
+                                                                                       250
+                                                                                       280
+                                                                                       (place-image left-arrow
+                                                                                                    250
+                                                                                                    330
+                                                                                                    first-third)))))))
+  (place-image diff-level
+               340
+               230
+               (place-image theme-pack
+                            340
+                            280
+                            (place-image music-level
+                                         340
+                                         330
+                                         second-third)))
+  ) ;; end of SETTINGS
+
+;; lets now make the mouse events
 (define (mouse-handler world x y click)
   (cond
-    [(and (equal? click "button-down") ; Left mouse button was clicked
-          (<= x 325) (>= x 175)
-          (<= y 265) (>= y 215))
-     (big-bang PLAYGROUND
-       (on-tick UPDATE_POSITION 1/120) ; get UPDATE_POSITION on-tick. The clock ticks at a rate of 120 times per second
-       (to-draw PLAYGROUND) ; draws the image
-       (on-key MOVE) ; configures the movement of the bottom bar
-       )]
+    [(eq? (vector-ref STATE-VECTOR 0) "menu") (cond
+                                                [(and (mouse=? click "button-down") 
+                                                      (<= x 325) (>= x 175)
+                                                      (<= y 265) (>= y 215)) (vector-set! STATE-VECTOR 0 "start")]
+                                                ;; if a button mouse is clicke in the start rectangle, we send "start"
+                                                ;; instruction to STATE-VECTOR to initialize PLAYGROUND
+                                                [(and (mouse=? click "button-down")
+                                                      (<= x 325) (>= x 175)
+                                                      (<= y 325) (>= y 275)) (vector-set! STATE-VECTOR 0 "settings")]
+                                                ;; if a button mouse is clicke in the start rectangle, we send "settings"
+                                                ;; instruction to STATE-VECTOR to initialize SETTINGS
+                                                )]
+    
+    [(eq? (vector-ref STATE-VECTOR 0) "settings") (cond
+                                                    [(and (mouse=? click "button-down")
+                                                          (<= x 325) (>= x 175)
+                                                          (<= y 425) (>= y 375)) (vector-set! SETTINGS_VECTOR 0 "go back")]
+                                                    ;; if a button mouse is clicke in the start rectangle, we send "go back"
+                                                    ;; instruction to SETTINGS_VECTOR to go back to menu
+                                                    )]
+    )
+  )
+;; SETTINGS_VECTOR stores instructions
+(define SETTINGS_VECTOR (make-vector 1))
+;; STATE-VECTOR stores instructions to change between scenes
+(define STATE-VECTOR (make-vector 1))
+;; initial state is "menu"
+(vector-set! STATE-VECTOR 0 "menu")
+
+;; this function is drawing the image in big-bang based on the instruction stored in STATE-VECTOR
+(define (WorldStates state)
+  (cond
+    [(eq? (vector-ref STATE-VECTOR 0) "start") (PLAYGROUND)]
+    [(eq? (vector-ref STATE-VECTOR 0) "settings") (cond
+                                              [(eq? (vector-ref SETTINGS_VECTOR 0) "go back") (vector-set! SETTINGS_VECTOR 0 0)
+                                                                                              (vector-set! STATE-VECTOR 0 "menu")
+                                                                                              (MAIN_MENU)]
+                                              [#t (SETTINGS)])
+                                                  ]
+    [(eq? (vector-ref STATE-VECTOR 0) "menu") (MAIN_MENU)]
     )
   )
 
 ; big-bang displays the created world
-(big-bang MAIN_MENU
-  (to-draw MAIN_MENU) ; draws the image
+(big-bang WorldStates
+  (to-draw WorldStates) ; draws the image
+  (on-tick UPDATE_POSITION 1/120)
+  (on-key MOVE)
   (on-mouse mouse-handler)
   )
