@@ -469,7 +469,10 @@
                                                       (<= y 325) (>= y 275)) (vector-set! STATE-VECTOR 0 "settings")]
                                                 ;; if a button mouse is clicke in the start rectangle, we send "settings"
                                                 ;; instruction to STATE-VECTOR to initialize SETTINGS
-                                                )]
+                                                 [(and (mouse=? click "button-down")
+                                                     (<= x 325) (>= x 175)
+                                                     (<= y 385) (>= y 335))  (vector-set! STATE-VECTOR 0 "Exit")]
+                                           )]
     
     [(eq? (vector-ref STATE-VECTOR 0) "settings") (cond
                                                     [(and (mouse=? click "button-down")
@@ -523,10 +526,13 @@
     )
   )
 
+(define (should-stop? world)
+  (eq? (vector-ref STATE-VECTOR 0) "exit"))
 ; big-bang displays the created world
 (big-bang WorldStates
   (to-draw WorldStates) ; draws the image
   (on-tick UPDATE_POSITION 1/120)
   (on-key MOVE)
   (on-mouse mouse-handler)
-  )                       
+ (stop-when should-stop?)
+  )                        
