@@ -8,12 +8,18 @@
 ;(define config (string->jsexpr (read-line input-config)))
 ;(define output-config (open-output-file "config.json" #:exists 'replace))
 
-;(define difficulty-instruction (make-vector 1))
 (define theme-instruction (make-vector 1))
+;; to save the index of the difficulty instruction
+
 ;(define music-instruction (make-vector 1))
-;(vector-set! difficulty-instruction 0 (hash-ref config 'Difficulty))
-(vector-set! theme-instruction 0 "green")
+;(vector-set! theme-instruction 0 0)
 ;(vector-set! music-instruction 0 (hash-ref config 'Music))
+
+(define difficulty-instruction (make-vector 1))
+(vector-set! difficulty-instruction 0 0)
+;; to save the index of the difficulty instruction
+;; our range of colours
+(define color-pallete '("green" "lightpurple" "lightblue" "orange" "pink" "yellow"))
 
 ;(define file-to-write
 ;  (string-append "{"
@@ -25,7 +31,7 @@
 ;; coordinates struct of x and y, they can be maximum 500
 ;; vx is velocity of x and vy is velocity of y
 (struct state (x y vx vy) #:mutable #:transparent)
-(define a-ball (state 250 300 0 3))
+(define a-ball (state 250 300 0 0))
 (define bottom-bar (state 250 485 35 0))
 (define left-wall (state 5 255 0 0))
 (define right-wall (state 495 255 0 0))
@@ -35,10 +41,6 @@
 (define SCENE (empty-scene 500 500 "black"))
 (define VERTICAL_RECTANGLE (rectangle 1 500 "solid" "red"))
 (define HORIZONTAL_RECTANGLE (rectangle 490 1 "solid" "red"))
-(define BALL (circle 6 "solid" (vector-ref theme-instruction 0)))
-(define BAR (rectangle 50 5 "solid" (vector-ref theme-instruction 0)))
-(define BLOCK (rectangle 30 8 "solid" (vector-ref theme-instruction 0)))
-(define surroundings (rectangle 150 50 "outline" (vector-ref theme-instruction 0)))
 
 ;; ----------------------------------------------------------------------------------------------------------------------------
 ;; ------------------------------------------------- HELPER FUNCTIONS SECTION !!! ---------------------------------------------
@@ -136,14 +138,15 @@
 
 ; this function returns the placed blocks on the scene using the positions created in MAKE_STRUCTURE
 ; it is a recursion that when the first element is void? or empty? it removes that element and applies it on the others
-(define (MY_FINAL_SCENE a-scene structure)
+(define (MY_FINAL_SCENE a-scene structure object)
   (cond
     [(empty? structure) a-scene]
-    [(void? (first structure)) (MY_FINAL_SCENE a-scene (rest structure))]
-    [(empty? (first structure)) (MY_FINAL_SCENE a-scene (rest structure))]
-    [#t (MY_FINAL_SCENE (place-image BLOCK (caar structure) (first (rest (first structure))) a-scene)
-                        (rest structure))]
-    ))
+    [(void? (first structure)) (MY_FINAL_SCENE a-scene (rest structure) object)]
+    [(empty? (first structure)) (MY_FINAL_SCENE a-scene (rest structure) object)]
+    [#t (MY_FINAL_SCENE (place-image object (caar structure) (first (rest (first structure))) a-scene)
+                        (rest structure) object)]
+    )
+  )
 
 ;; ----------------------------------------------------------------------------------------------------------------------------
 ;; ---------------------------------------------- BALL AND BAR MOVEMENT SECTION !!! -------------------------------------------
@@ -153,10 +156,10 @@
 ; bounce the ball if it is the case
 (define (UPDATE_POSITION ball)
   (cond
-    [(eq? (vector-ref STATE-VECTOR 0) "start") (set-state-x! a-ball (+ (state-x a-ball) (state-vx a-ball)))
-                                         (set-state-y! a-ball (+ (state-y a-ball) (state-vy a-ball)))
-                                         (BOUNCE)]
-  )
+    [(eq? (vector-ref STATE-VECTOR 0) "start")
+     (set-state-x! a-ball (+ (state-x a-ball) (state-vx a-ball)))
+     (set-state-y! a-ball (+ (state-y a-ball) (state-vy a-ball)))
+     (BOUNCE)])
   )
 
 ; a function that makes the ball bounce when hits the left wall
@@ -253,11 +256,12 @@
 
 ;; below there is created the main-menu scene
 (define (MAIN_MENU)
-  (define block-text (text/font "BLOCK" 40 (vector-ref theme-instruction 0) #f 'decorative 'slant 'bold #f))
-  (define breaker-text (text/font "BREAKER" 50 (vector-ref theme-instruction 0) #f 'decorative 'slant 'bold #f))
-  (define start (text "Start" 30 (vector-ref theme-instruction 0)))
-  (define settings (text "Settings" 30 (vector-ref theme-instruction 0)))
-  (define exit (text "Exit" 30 (vector-ref theme-instruction 0)))
+  (define block-text (text/font "BLOCK" 40 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'slant 'bold #f))
+  (define breaker-text (text/font "BREAKER" 50 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'slant 'bold #f))
+  (define start (text "Start" 30 (list-ref color-pallete (vector-ref theme-instruction 0))))
+  (define settings (text "Settings" 30 (list-ref color-pallete (vector-ref theme-instruction 0))))
+  (define exit (text "Exit" 30 (list-ref color-pallete (vector-ref theme-instruction 0))))
+  (define surroundings (rectangle 150 50 "outline" (list-ref color-pallete (vector-ref theme-instruction 0))))
   
   (place-image block-text
                180
@@ -288,6 +292,15 @@
 
 ;; there is the playground, where the player has to break the blocks
 (define (PLAYGROUND)
+  (define BALL (circle 6 "solid" (list-ref color-pallete (vector-ref theme-instruction 0))))
+  (define BAR (rectangle 50 5 "solid" (list-ref color-pallete (vector-ref theme-instruction 0))))
+  (define BLOCK (rectangle 30 8 "solid" (list-ref color-pallete (vector-ref theme-instruction 0))))
+
+  ;; set the velocity of the ball based on difficulty
+  (if (not (negative? (state-vy a-ball)))
+      (set-state-vy! a-ball (+ (vector-ref difficulty-instruction 0) 1))
+      #t)
+  
   (define ball-position (cons (state-x a-ball) (cons (state-y a-ball) '())))
   
     ; this function uses hits_block? to check if it has collided, then what side of the block the ball touched
@@ -344,7 +357,7 @@
 
     ; by converting the vector back to a list, creates the scene with the blocks placed on it
     ; and it does it everytime the vector gets updated so it creates the scene without the block that has been touched
-    (define objects (MY_FINAL_SCENE SCENE (vector->list (MAP_BALL my-struct))))
+    (define objects (MY_FINAL_SCENE SCENE (vector->list (MAP_BALL my-struct)) BLOCK))
 
     ; place all not removable objects on the scene of blocks
     (place-image BALL
@@ -368,26 +381,29 @@
 
 ;; below the settings scene is created
 (define (SETTINGS)
-  (define settings (text/font "SETTINGS" 50 (vector-ref theme-instruction 0) #f 'decorative 'slant 'bold #f))
-  (define difficulty (text/font "Difficulty:" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
-  (define theme (text/font "Theme:" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
-  (define music (text/font "Music:" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
-  (define back (text/font "Go Back!" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
+  (define settings (text/font "SETTINGS" 50 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'slant 'bold #f))
+  (define difficulty (text/font "Difficulty:" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
+  (define theme (text/font "Theme:" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
+  (define music (text/font "Music:" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
+  (define surroundings (rectangle 150 50 "outline" (list-ref color-pallete (vector-ref theme-instruction 0))))
+  (define back (text/font "Go Back!" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
   (define right-arrow (polygon (list (make-pulled-point 1/2 10 0 0 1/2 -10)
                  (make-posn -5 10)
                  (make-pulled-point 1/2 -10 30 0 1/2 10)
                  (make-posn -5 -10))
            "solid"
-           (vector-ref theme-instruction 0)))
+           (list-ref color-pallete (vector-ref theme-instruction 0))))
   (define left-arrow (polygon (list (make-pulled-point -1/2 -10 0 0 -1/2 10)
                  (make-posn 5 -10)
                  (make-pulled-point -1/2 10 -30 0 -1/2 -10)
                  (make-posn 5 10))
            "solid"
-           (vector-ref theme-instruction 0)))
-  (define diff-level (text/font "Medium" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
-  (define theme-pack (text/font "Florin" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
-  (define music-level (text/font "50" 25 (vector-ref theme-instruction 0) #f 'decorative 'normal 'bold #f))
+           (list-ref color-pallete (vector-ref theme-instruction 0))))
+  (define diff-level  `(,(text/font "Easy" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f)
+                        ,(text/font "Medium" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f)
+                        ,(text/font "Hard" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f)))
+  (define theme-pack (text/font (list-ref color-pallete (vector-ref theme-instruction 0)) 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
+  (define music-level (text/font "50" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
 
   (define first-third (place-image settings
                                    250
@@ -427,7 +443,7 @@
                                                                                                     250
                                                                                                     330
                                                                                                     first-third)))))))
-  (place-image diff-level
+  (place-image (list-ref diff-level (vector-ref difficulty-instruction 0))
                340
                230
                (place-image theme-pack
@@ -461,7 +477,29 @@
                                                           (<= y 425) (>= y 375)) (vector-set! SETTINGS_VECTOR 0 "go back")]
                                                     ;; if a button mouse is clicke in the start rectangle, we send "go back"
                                                     ;; instruction to SETTINGS_VECTOR to go back to menu
+                                                    
+                                                    [(and (mouse=? click "button-down")
+                                                          (<= x 445) (>= x 415)
+                                                          (<= y 245) (>= y 215)) (if (= (vector-ref difficulty-instruction 0) 2);; if the last element of the list
+                                                                                     (vector-set! difficulty-instruction 0 0) ;; then we set the index back to 0, first one
+                                                                                     (vector-set! difficulty-instruction 0 (+ (vector-ref difficulty-instruction 0) 1)))] ;; else we increase by 1
+                                                    [(and (mouse=? click "button-down")
+                                                          (<= x 265) (>= x 235)
+                                                          (<= y 245) (>= y 215)) (if (= (vector-ref difficulty-instruction 0) 0) ;; if the first element of the list
+                                                                                     (vector-set! difficulty-instruction 0 2) ;; then we set the index to the last one 
+                                                                                     (vector-set! difficulty-instruction 0 (- (vector-ref difficulty-instruction 0) 1)))] ;; else we decrease by 1
+                                                    [(and (mouse=? click "button-down")
+                                                          (<= x 445) (>= x 415)
+                                                          (<= y 295) (>= y 265)) (if (= (vector-ref theme-instruction 0) 5) 
+                                                                                     (vector-set! theme-instruction 0 0) 
+                                                                                     (vector-set! theme-instruction 0 (+ (vector-ref theme-instruction 0) 1)))] 
+                                                    [(and (mouse=? click "button-down")
+                                                          (<= x 265) (>= x 235)
+                                                          (<= y 295) (>= y 265)) (if (= (vector-ref theme-instruction 0) 0)
+                                                                                     (vector-set! theme-instruction 0 5)
+                                                                                     (vector-set! theme-instruction 0 (- (vector-ref theme-instruction 0) 1)))]
                                                     )]
+    [(eq? (vector-ref STATE-VECTOR 0) "empty") (MAIN_MENU)]
     )
   )
 ;; SETTINGS_VECTOR stores instructions
@@ -491,4 +529,4 @@
   (on-tick UPDATE_POSITION 1/120)
   (on-key MOVE)
   (on-mouse mouse-handler)
-  )
+  )                       
