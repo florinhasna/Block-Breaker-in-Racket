@@ -4,29 +4,37 @@
 (require lang/posn)
 (require json)
 
-;(define input-config (open-input-file "config.json"))
-;(define config (string->jsexpr (read-line input-config)))
-;(define output-config (open-output-file "config.json" #:exists 'replace))
+;; import the configurations data, either default, either prevously saved
+(define input-config (open-input-file "config.json"))
+(define config (string->jsexpr (read-line input-config)))
 
+;; to save the index of the theme instruction
 (define theme-instruction (make-vector 1))
+(vector-set! theme-instruction 0 (string->number (hash-ref config 'Theme)))
+
+;; to save the index of the music instruction
+(define music-instruction (make-vector 1))
+(vector-set! music-instruction 0 (string->number (hash-ref config 'Music)))
+
 ;; to save the index of the difficulty instruction
-
-;(define music-instruction (make-vector 1))
-;(vector-set! theme-instruction 0 0)
-;(vector-set! music-instruction 0 (hash-ref config 'Music))
-
 (define difficulty-instruction (make-vector 1))
-(vector-set! difficulty-instruction 0 0)
-;; to save the index of the difficulty instruction
+(vector-set! difficulty-instruction 0 (string->number (hash-ref config 'Difficulty)))
+
+;; a function to write the configurations made in settings into a json file
+(define (write-my-config)
+  (define file-to-write
+    (string-append "{"
+                   " \"Difficulty\":" (string-replace " \"1\"," "1" (number->string (vector-ref difficulty-instruction 0)))
+                   " \"Theme\":" (string-replace " \"1\"," "1" (number->string (vector-ref theme-instruction 0)))
+                   " \"Music\":" (string-replace " \"1\"" "1" (number->string (vector-ref music-instruction 0)))
+                   "}"))
+  (define output-config (open-output-file "config.json" #:exists 'replace))
+  (write-json (string->jsexpr file-to-write) output-config)
+  (close-output-port output-config)
+  )
+
 ;; our range of colours
 (define color-pallete '("green" "lightpurple" "lightblue" "orange" "pink" "yellow"))
-
-;(define file-to-write
-;  (string-append "{"
-;                 " \"Difficulty\":" (vector-ref difficulty-instruction 0)
-;                 " \"Theme\":" (vector-ref theme-instruction 0)
-;                 " \"Music\":" (vector-ref music-instruction 0)
-;                 "}"))
 
 ;; coordinates struct of x and y, they can be maximum 500
 ;; vx is velocity of x and vy is velocity of y
@@ -469,10 +477,11 @@
                                                       (<= y 325) (>= y 275)) (vector-set! STATE-VECTOR 0 "settings")]
                                                 ;; if a button mouse is clicke in the start rectangle, we send "settings"
                                                 ;; instruction to STATE-VECTOR to initialize SETTINGS
-                                                 [(and (mouse=? click "button-down")
+
+                                                [(and (mouse=? click "button-down")
                                                      (<= x 325) (>= x 175)
-                                                     (<= y 385) (>= y 335))  (vector-set! STATE-VECTOR 0 "Exit")]
-                                           )]
+                                                     (<= y 385) (>= y 335))  (vector-set! STATE-VECTOR 0 "exit")]
+                                                )]
     
     [(eq? (vector-ref STATE-VECTOR 0) "settings") (cond
                                                     [(and (mouse=? click "button-down")
@@ -485,22 +494,26 @@
                                                           (<= x 445) (>= x 415)
                                                           (<= y 245) (>= y 215)) (if (= (vector-ref difficulty-instruction 0) 2);; if the last element of the list
                                                                                      (vector-set! difficulty-instruction 0 0) ;; then we set the index back to 0, first one
-                                                                                     (vector-set! difficulty-instruction 0 (+ (vector-ref difficulty-instruction 0) 1)))] ;; else we increase by 1
+                                                                                     (vector-set! difficulty-instruction 0 (+ (vector-ref difficulty-instruction 0) 1)))
+                                                                                 (write-my-config)] ;; else we increase by 1
                                                     [(and (mouse=? click "button-down")
                                                           (<= x 265) (>= x 235)
                                                           (<= y 245) (>= y 215)) (if (= (vector-ref difficulty-instruction 0) 0) ;; if the first element of the list
                                                                                      (vector-set! difficulty-instruction 0 2) ;; then we set the index to the last one 
-                                                                                     (vector-set! difficulty-instruction 0 (- (vector-ref difficulty-instruction 0) 1)))] ;; else we decrease by 1
+                                                                                     (vector-set! difficulty-instruction 0 (- (vector-ref difficulty-instruction 0) 1)))
+                                                                                 (write-my-config)] ;; else we decrease by 1
                                                     [(and (mouse=? click "button-down")
                                                           (<= x 445) (>= x 415)
                                                           (<= y 295) (>= y 265)) (if (= (vector-ref theme-instruction 0) 5) 
                                                                                      (vector-set! theme-instruction 0 0) 
-                                                                                     (vector-set! theme-instruction 0 (+ (vector-ref theme-instruction 0) 1)))] 
+                                                                                     (vector-set! theme-instruction 0 (+ (vector-ref theme-instruction 0) 1)))
+                                                                                 (write-my-config)] 
                                                     [(and (mouse=? click "button-down")
                                                           (<= x 265) (>= x 235)
                                                           (<= y 295) (>= y 265)) (if (= (vector-ref theme-instruction 0) 0)
                                                                                      (vector-set! theme-instruction 0 5)
-                                                                                     (vector-set! theme-instruction 0 (- (vector-ref theme-instruction 0) 1)))]
+                                                                                     (vector-set! theme-instruction 0 (- (vector-ref theme-instruction 0) 1)))
+                                                                                 (write-my-config)]
                                                     )]
     [(eq? (vector-ref STATE-VECTOR 0) "empty") (MAIN_MENU)]
     )
@@ -534,5 +547,5 @@
   (on-tick UPDATE_POSITION 1/120)
   (on-key MOVE)
   (on-mouse mouse-handler)
- (stop-when should-stop?)
-  )                        
+  (stop-when should-stop?)
+  )         
