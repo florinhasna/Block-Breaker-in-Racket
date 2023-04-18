@@ -12,10 +12,6 @@
 (define theme-instruction (make-vector 1))
 (vector-set! theme-instruction 0 (string->number (hash-ref config 'Theme)))
 
-;; to save the index of the music instruction
-(define music-instruction (make-vector 1))
-(vector-set! music-instruction 0 (string->number (hash-ref config 'Music)))
-
 ;; to save the index of the difficulty instruction
 (define difficulty-instruction (make-vector 1))
 (vector-set! difficulty-instruction 0 (string->number (hash-ref config 'Difficulty)))
@@ -25,8 +21,7 @@
   (define file-to-write
     (string-append "{"
                    " \"Difficulty\":" (string-replace " \"1\"," "1" (number->string (vector-ref difficulty-instruction 0)))
-                   " \"Theme\":" (string-replace " \"1\"," "1" (number->string (vector-ref theme-instruction 0)))
-                   " \"Music\":" (string-replace " \"1\"" "1" (number->string (vector-ref music-instruction 0)))
+                   " \"Theme\":" (string-replace " \"1\"" "1" (number->string (vector-ref theme-instruction 0)))
                    "}"))
   (define output-config (open-output-file "config.json" #:exists 'replace))
   (write-json (string->jsexpr file-to-write) output-config)
@@ -45,23 +40,30 @@
 (define right-wall (state 495 255 0 0))
 (define ceiling (state 250 5 0 0))
 
-; lets now define our objects
+;; lets now define our objects
 (define SCENE (empty-scene 500 500 "black"))
 (define VERTICAL_RECTANGLE (rectangle 1 500 "solid" "red"))
 (define HORIZONTAL_RECTANGLE (rectangle 490 1 "solid" "red"))
+
+;; SETTINGS_VECTOR stores instructions
+(define SETTINGS_VECTOR (make-vector 1))
+;; STATE-VECTOR stores instructions to change between scenes
+(define STATE-VECTOR (make-vector 1))
+;; initial state is "menu"
+(vector-set! STATE-VECTOR 0 "menu")
 
 ;; ----------------------------------------------------------------------------------------------------------------------------
 ;; ------------------------------------------------- HELPER FUNCTIONS SECTION !!! ---------------------------------------------
 ;; ----------------------------------------------------------------------------------------------------------------------------
 
-; creates a list of pairs, each pair has 2 elements representing the position-x and position-y of a block on the scene
+;; creates a list of pairs, each pair has 2 elements representing the position-x and position-y of a block on the scene
 (define (MAKE_STRUCTURE start lines columns)
   
-  ; defined two lists to iterate the number of line times and column times
+  ;; defined two lists to iterate the number of line times and column times
   (define NUMBER-OF-ROWS (rest (range (+ lines 1))))      
   (define NUMBER-OF-COLUMNS (rest (range (+ columns 1))))
 
-  ; creates a list of pairs representing a line of blocks on the scene
+  ;; creates a list of pairs representing a line of blocks on the scene
   (define (MAKE-LINE start)  
     (for/list [(i NUMBER-OF-COLUMNS)]
       (cond
@@ -71,7 +73,7 @@
       )
     )
 
-  ; creates the number of rows using MAKE-LINE
+  ;; creates the number of rows using MAKE-LINE
   (apply append (for/list [(i NUMBER-OF-ROWS)]
                   (cond
                     [(= i 1) (MAKE-LINE start)]
@@ -79,9 +81,9 @@
                     )
                   )
          )
-  ) ; end of MAKE_STRUCTURE
+  ) ;; end of MAKE_STRUCTURE
 
-; created this function to check wether or not the ball is colliding with a block
+;; created this function to check wether or not the ball is colliding with a block
 (define (hits-block? ball block)
   (cond
     [(empty? block) #f]
@@ -91,6 +93,7 @@
           (>= (second ball) (- (second block) 10))) #t]
       [#t #f]))
 
+;; the function returns the coordinates for the 4 corners of a block
 (define (find-corners a-block)
   (cond
     [(not (empty? a-block)) (define left-margin (- (first a-block) 15)) ; left margin of the block
@@ -104,48 +107,49 @@
     [#t #f])
   )
 
-  (define (hits-corner? ball corners)
-    (cond
-      [(empty? corners) #f]
-      [(and [>= (first ball) (caar corners)]
-            [<= (first ball) (+ (caar corners) 2)]
-            [>= (second ball) (second (first corners))]
-            [<= (second ball) (+ (second (first corners)) 2)])
-       "top-left"]
-      [(and [>= (first ball) (caar corners)]
+;; a function to check if a block was hit in one of the corners
+(define (hits-corner? ball corners)
+  (cond
+    [(empty? corners) #f]
+    [(and [>= (first ball) (caar corners)]
+          [<= (first ball) (+ (caar corners) 2)]
+          [>= (second ball) (second (first corners))]
+          [<= (second ball) (+ (second (first corners)) 2)])
+     "top-left"]
+    [(and [>= (first ball) (caar corners)]
           [<= (first ball) (+ (caar corners) 2)]
           [<= (second ball) (second (first corners))]
           [>= (second ball) (- (second (first corners)) 2)])
-       "bottom-left"]
-      [(and [<= (first ball) (caar corners)]
-            [>= (first ball) (- (caar corners) 2)]
-            [>= (second ball) (second (first corners))]
-            [<= (second ball) (+ (second (first corners)) 2)])
-       "top-right"]
-      [(and [>= (first ball) (caar corners)]
-            [<= (first ball) (- (caar corners) 2)]
-            [>= (second ball) (second (first corners))]
-            [<= (second ball) (- (second (first corners)) 2)])
-       "bottom-right"]
-      [#t (hits-corner? ball (rest corners))]
-      ))
+     "bottom-left"]
+    [(and [<= (first ball) (caar corners)]
+          [>= (first ball) (- (caar corners) 2)]
+          [>= (second ball) (second (first corners))]
+          [<= (second ball) (+ (second (first corners)) 2)])
+     "top-right"]
+    [(and [>= (first ball) (caar corners)]
+          [<= (first ball) (- (caar corners) 2)]
+          [>= (second ball) (second (first corners))]
+          [<= (second ball) (- (second (first corners)) 2)])
+     "bottom-right"]
+    [#t (hits-corner? ball (rest corners))]
+    ))
 
-; this function checks if the element is member of the vector and returns its index number
+;; this function checks if the element is member of the vector and returns its index number
 (define (get-index1 elem a-vector i)
   (cond
     [(>= i (vector-length a-vector)) #f]
     [(eq? elem (vector-ref a-vector i)) i]
     [#t (get-index1 elem a-vector (+ i 1))]))
-; simplify the above by giving i=0
+;; simplify the above by giving i=0
 (define (get-index elem a-vector) (get-index1 elem a-vector 0))
 
-; using the function created above, creates a list of pairs which are positions of the blocks
-; then converts it to a vector because they are mutable and we can remove the blocks from the scene
+;; using the function created above, creates a list of pairs which are positions of the blocks
+;; then converts it to a vector because they are mutable and we can remove the blocks from the scene
 (define list-struct (MAKE_STRUCTURE `(85 125) 5 10))
 (define my-struct (list->vector list-struct))
 
-; this function returns the placed blocks on the scene using the positions created in MAKE_STRUCTURE
-; it is a recursion that when the first element is void? or empty? it removes that element and applies it on the others
+;; this function returns the placed blocks on the scene using the positions created in MAKE_STRUCTURE
+;; it is a recursion that when the first element is void? or empty? it removes that element and applies it on the others
 (define (MY_FINAL_SCENE a-scene structure object)
   (cond
     [(empty? structure) a-scene]
@@ -156,21 +160,43 @@
     )
   )
 
+;; the initial-configuration of a game for when it is restarted
+(define (initial-configurations)
+  (set-state-x! a-ball 250)
+  (set-state-y! a-ball 300)
+  (set-state-vx! a-ball 0)
+  (set-state-x! bottom-bar 250)
+  (set-state-y! bottom-bar 485)
+  ;; after setting-up the position and velocity we rebuild the blocks that have been broken
+  (for/vector ([i my-struct])
+    (define my-index (get-index i my-struct))
+    (vector-set! my-struct my-index (list-ref list-struct my-index))))
+
+;; this function checks if all blocks were broken to check if the player won
+(define (check-if-empty? a-list)
+    (cond
+      [(empty? a-list) #t]
+      [(empty? (first a-list)) (check-if-empty? (rest a-list))]
+      [#t #f]))
+
 ;; ----------------------------------------------------------------------------------------------------------------------------
 ;; ---------------------------------------------- BALL AND BAR MOVEMENT SECTION !!! -------------------------------------------
 ;; ----------------------------------------------------------------------------------------------------------------------------
 
-; making the ball move by adding velocity to the position with every tick
-; bounce the ball if it is the case
+;; making the ball move by adding velocity to the position with every tick
+;; bounce the ball if it is the case
 (define (UPDATE_POSITION ball)
   (cond
+    [(check-if-empty? (vector->list my-struct)) (vector-set! STATE-VECTOR 0 "won")]
+    [(>= (state-y a-ball) 495) (vector-set! STATE-VECTOR 0 "lost")]
     [(eq? (vector-ref STATE-VECTOR 0) "start")
      (set-state-x! a-ball (+ (state-x a-ball) (state-vx a-ball)))
      (set-state-y! a-ball (+ (state-y a-ball) (state-vy a-ball)))
-     (BOUNCE)])
+     (BOUNCE)]
+    )
   )
 
-; a function that makes the ball bounce when hits the left wall
+;; a function that makes the ball bounce when hits the left wall
 (define (APPLY_VELOCITY_FROM_LEFT)
   (cond
     [(and [equal? (state-vx a-ball) 0]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
@@ -181,7 +207,7 @@
     )
   )
 
-; a function that makes the ball bounce when hits the right wall
+;; a function that makes the ball bounce when hits the right wall
 (define (APPLY_VELOCITY_FROM_RIGHT)
   (cond
     [(and [equal? (state-vx a-ball) 0]) (set-state-vy! a-ball (* (state-vy a-ball) -1))]
@@ -192,7 +218,7 @@
     )
   )
 
-; a function that makes the ball bounce when hits the top bar
+;; a function that makes the ball bounce when hits the top bar
 (define (APPLY_VELOCITY_FROM_CEILING)
   (cond
     [(and [equal? (state-vy a-ball) 0]) (set-state-vx! a-ball (* (state-vx a-ball) -1))]
@@ -203,7 +229,7 @@
     )
   )
 
-; a function that makes the ball bounce when hits the bottom bar
+;; a function that makes the ball bounce when hits the bottom bar
 (define (APPLY_VELOCITY_FROM_BAR)
   (define randomiser (string->number (real->decimal-string (/ (random 10 30) 10))))
   (cond
@@ -216,34 +242,34 @@
     )
   )
 
-; this function checks the position of the ball when it needs to bounce
-; and bounces it accordingly
+;; this function checks the position of the ball when it needs to bounce
+;; and bounces it accordingly
 (define (BOUNCE)
   (define ball-pos (cons (state-x a-ball) (cons (state-y a-ball) '())))
   (cond
-    ; condition for when the ball hits the left wall
+    ;; condition for when the ball hits the left wall
     [(and (<= (second ball-pos) (+ (state-y left-wall) 250))
           (>= (second ball-pos) (- (state-y left-wall) 250))
           (<= (first ball-pos) (+ (state-x left-wall) 6.5))) (APPLY_VELOCITY_FROM_LEFT)]
 
-    ;  condition for when the ball hits the right wall
+    ;;  condition for when the ball hits the right wall
     [(and (<= (second ball-pos) (+ (state-y right-wall) 250))
           (>= (second ball-pos) (- (state-y right-wall) 250))
           (>= (first ball-pos) (- (state-x right-wall) 6.5))) (APPLY_VELOCITY_FROM_RIGHT)]
 
-    ; condition for when the ball hits the top bar
+    ;; condition for when the ball hits the top bar
     [(and (<= (first ball-pos) (+ (state-x ceiling) 250))
           (>= (first ball-pos) (- (state-x ceiling) 250))
           (<= (second ball-pos) (+ (state-y ceiling) 6.5))) (APPLY_VELOCITY_FROM_CEILING)]
 
-    ; condition for when the ball hits the bottom bar
+    ;; condition for when the ball hits the bottom bar
     [(and (<= (second ball-pos) (+ (state-y bottom-bar) 8.5))
           (>= (second ball-pos) (- (state-y bottom-bar) 8.5))
           (<= (first ball-pos) (+ (state-x bottom-bar) 31))
           (>= (first ball-pos) (- (state-x bottom-bar) 31))) (APPLY_VELOCITY_FROM_BAR)]
     ))
 
-; make the bar move using left and right arrows
+;; make the bar move using left and right arrows
 (define (MOVE w a-key)
   (cond
     [(eq? (vector-ref STATE-VECTOR 0) "start") (cond
@@ -311,8 +337,8 @@
   
   (define ball-position (cons (state-x a-ball) (cons (state-y a-ball) '())))
   
-    ; this function uses hits_block? to check if it has collided, then what side of the block the ball touched
-    ; bounces the ball accordingly and removes the block from the scene by setting the vector element to an empty list
+    ;; this function uses hits_block? to check if it has collided, then what side of the block the ball touched
+    ;; bounces the ball accordingly and removes the block from the scene by setting the vector element to an empty list
     (define (MAP_BALL struct)
       (for/vector ([i struct])
         (define my-corners (find-corners i))
@@ -328,28 +354,28 @@
              [(eq? (hits-corner? ball-position my-corners) "bottom-right") (set-state-vx! a-ball (* (state-vx a-ball) -1))
                                                                            (set-state-vy! a-ball (* (state-vy a-ball) -1))]
              
-             ; condition for when hits the left side of the block
+             ;; condition for when hits the left side of the block
              [(and (>= (first ball-position) (- (first i) 18))
                    (<= (first ball-position) (- (first i) 10))
                    (<= (second ball-position) (+ (second i) 10))
                    (>= (second ball-position) (- (second i) 10)))
               (APPLY_VELOCITY_FROM_RIGHT)]
              
-             ; condition for when it hits the right side of the block
+             ;; condition for when it hits the right side of the block
              [(and (>= (first ball-position) (+ (first i) 10))
                    (<= (first ball-position) (+ (first i) 18))
                    (<= (second ball-position) (+ (second i) 10))
                    (>= (second ball-position) (- (second i) 10)))
               (APPLY_VELOCITY_FROM_LEFT)]
 
-             ; condition for when it hits the lower side of the block
+             ;; condition for when it hits the lower side of the block
              [(and (>= (first ball-position) (- (first i) 18))
                    (<= (first ball-position) (+ (first i) 18))
                    (<= (second ball-position) (+ (second i) 10))
                    (>= (second ball-position) (+ (second i) 5)))
               (APPLY_VELOCITY_FROM_CEILING)]
 
-             ; condition for when it hits the upper side of the block
+             ;; condition for when it hits the upper side of the block
              [(and (>= (first ball-position) (- (first i) 18))
                    (<= (first ball-position) (+ (first i) 18))
                    (>= (second ball-position) (- (second i) 10))
@@ -357,21 +383,21 @@
               (APPLY_VELOCITY_FROM_BAR)]
              )
            
-           ; now lets remove the block that has been hit
+           ;; now lets remove the block that has been hit
            (vector-set! struct (get-index i struct) '())]
 
-          ; else, means it hasn't touched the block and returns i as it is
+          ;; else, means it hasn't touched the block and returns i as it is
           [#t i])))
 
-    ; by converting the vector back to a list, creates the scene with the blocks placed on it
-    ; and it does it everytime the vector gets updated so it creates the scene without the block that has been touched
+    ;; by converting the vector back to a list, creates the scene with the blocks placed on it
+    ;; and it does it everytime the vector gets updated so it creates the scene without the block that has been touched
     (define objects (MY_FINAL_SCENE SCENE (vector->list (MAP_BALL my-struct)) BLOCK))
 
-    ; place all not removable objects on the scene of blocks
-    (place-image BALL
-                 (state-x a-ball)
-                 (state-y a-ball)
-                 (place-image VERTICAL_RECTANGLE
+    ;; place all not removable objects on the scene of blocks
+  (place-image BALL
+               (state-x a-ball)
+               (state-y a-ball)
+               (place-image VERTICAL_RECTANGLE
                             (state-x left-wall)
                             (state-y left-wall)
                             (place-image VERTICAL_RECTANGLE
@@ -384,15 +410,64 @@
                                                                    (state-x bottom-bar)
                                                                    (state-y bottom-bar)
                                                                    objects)))))
-
+  
   ) ;; end of PLAYGROUND
+
+;; this creates the scene when the player failed to catch the ball
+(define (LOST)
+  (define you-lost (text/font "You Lost!" 50 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'slant 'bold #f))
+  (define surroundings (rectangle 150 50 "outline" (list-ref color-pallete (vector-ref theme-instruction 0))))
+  (define retry (text/font "Retry" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
+  (define menu (text/font "Main Menu" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
+
+  (place-image you-lost
+               250
+               200
+               (place-image surroundings
+                            250
+                            290
+                            (place-image retry
+                                         250
+                                         290
+                                         (place-image surroundings
+                                                      250
+                                                      350
+                                                      (place-image menu
+                                                                   250
+                                                                   350
+                                                                   SCENE)))))
+  ) ;; end of LOST
+
+;; this creates the scene when the player successfuly broken all the blocks
+(define (VICTORY)
+  (define you-won (text/font "You Won!" 50 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'slant 'bold #f))
+  (define surroundings (rectangle 150 50 "outline" (list-ref color-pallete (vector-ref theme-instruction 0))))
+  (define retry (text/font "Play again!" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
+  (define menu (text/font "Main Menu" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
+
+  (place-image you-won
+               250
+               210
+               (place-image surroundings
+                            250
+                            290
+                            (place-image retry
+                                         250
+                                         290
+                                         (place-image surroundings
+                                                      250
+                                                      350
+                                                      (place-image menu
+                                                                   250
+                                                                   350
+                                                                   SCENE)))))
+) ;; end of VICTORY
 
 ;; below the settings scene is created
 (define (SETTINGS)
   (define settings (text/font "SETTINGS" 50 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'slant 'bold #f))
   (define difficulty (text/font "Difficulty:" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
   (define theme (text/font "Theme:" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
-  (define music (text/font "Music:" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
   (define surroundings (rectangle 150 50 "outline" (list-ref color-pallete (vector-ref theme-instruction 0))))
   (define back (text/font "Go Back!" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
   (define right-arrow (polygon (list (make-pulled-point 1/2 10 0 0 1/2 -10)
@@ -411,8 +486,8 @@
                         ,(text/font "Medium" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f)
                         ,(text/font "Hard" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f)))
   (define theme-pack (text/font (list-ref color-pallete (vector-ref theme-instruction 0)) 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
-  (define music-level (text/font "50" 25 (list-ref color-pallete (vector-ref theme-instruction 0)) #f 'decorative 'normal 'bold #f))
 
+  ;; below is 1/3 part of the scene
   (define first-third (place-image settings
                                    250
                                    130
@@ -422,50 +497,43 @@
                                                 (place-image theme
                                                              150
                                                              280
-                                                             (place-image music
-                                                                          150
-                                                                          330
-                                                                           (place-image surroundings
-                                                                                        250
-                                                                                        400
-                                                                                        (place-image back
-                                                                                                     250
-                                                                                                     400
-                                                                                                     SCENE)))))))
+                                                             (place-image surroundings
+                                                                          250
+                                                                          350
+                                                                          (place-image back
+                                                                                       250
+                                                                                       350
+                                                                                       SCENE))))))
+  
+  ;; the 2/3 part of the scene is created and placed on the 1/3
   (define second-third (place-image right-arrow
                                    430
                                    230
                                    (place-image right-arrow
                                                 430
                                                 280
-                                                (place-image right-arrow
-                                                             430
-                                                             330
+                                                (place-image left-arrow
+                                                             250
+                                                             230
                                                              (place-image left-arrow
                                                                           250
-                                                                          230
-                                                                          (place-image left-arrow
-                                                                                       250
-                                                                                       280
-                                                                                       (place-image left-arrow
-                                                                                                    250
-                                                                                                    330
-                                                                                                    first-third)))))))
+                                                                          280
+                                                                          first-third)))))
+  ;; and finally we place everything together, the last objects on the 2/3
   (place-image (list-ref diff-level (vector-ref difficulty-instruction 0))
                340
                230
                (place-image theme-pack
                             340
                             280
-                            (place-image music-level
-                                         340
-                                         330
-                                         second-third)))
+                            second-third))
   ) ;; end of SETTINGS
 
 ;; lets now make the mouse events
 (define (mouse-handler world x y click)
   (cond
+    ;; the mouse-handler is also a state-handler, it checks the state the player, initial being menu
+    ;; based on his clicks, the STATE-VECTOR changes its value and the transition is happening in WorldStates
     [(eq? (vector-ref STATE-VECTOR 0) "menu") (cond
                                                 [(and (mouse=? click "button-down") 
                                                       (<= x 325) (>= x 175)
@@ -486,7 +554,7 @@
     [(eq? (vector-ref STATE-VECTOR 0) "settings") (cond
                                                     [(and (mouse=? click "button-down")
                                                           (<= x 325) (>= x 175)
-                                                          (<= y 425) (>= y 375)) (vector-set! SETTINGS_VECTOR 0 "go back")]
+                                                          (<= y 375) (>= y 325)) (vector-set! SETTINGS_VECTOR 0 "go back")]
                                                     ;; if a button mouse is clicke in the start rectangle, we send "go back"
                                                     ;; instruction to SETTINGS_VECTOR to go back to menu
                                                     
@@ -516,14 +584,26 @@
                                                                                  (write-my-config)]
                                                     )]
     [(eq? (vector-ref STATE-VECTOR 0) "empty") (MAIN_MENU)]
+    [(eq? (vector-ref STATE-VECTOR 0) "lost") (cond
+                                                [(and (mouse=? click "button-down")
+                                                      (<= x 325) (>= x 175)
+                                                      (<= y 315) (>= y 265)) (vector-set! STATE-VECTOR 0 "start")
+                                                                             (initial-configurations)]
+                                                [(and (mouse=? click "button-down")
+                                                      (<= x 325) (>= x 175)
+                                                      (<= y 375) (>= y 325)) (vector-set! STATE-VECTOR 0 "menu")
+                                                                             (initial-configurations)])]
+    [(eq? (vector-ref STATE-VECTOR 0) "won") (cond
+                                                [(and (mouse=? click "button-down")
+                                                      (<= x 325) (>= x 175)
+                                                      (<= y 315) (>= y 265)) (vector-set! STATE-VECTOR 0 "start")
+                                                                             (initial-configurations)]
+                                                [(and (mouse=? click "button-down")
+                                                      (<= x 325) (>= x 175)
+                                                      (<= y 375) (>= y 325)) (vector-set! STATE-VECTOR 0 "menu")
+                                                                             (initial-configurations)])]
     )
   )
-;; SETTINGS_VECTOR stores instructions
-(define SETTINGS_VECTOR (make-vector 1))
-;; STATE-VECTOR stores instructions to change between scenes
-(define STATE-VECTOR (make-vector 1))
-;; initial state is "menu"
-(vector-set! STATE-VECTOR 0 "menu")
 
 ;; this function is drawing the image in big-bang based on the instruction stored in STATE-VECTOR
 (define (WorldStates state)
@@ -536,12 +616,15 @@
                                               [#t (SETTINGS)])
                                                   ]
     [(eq? (vector-ref STATE-VECTOR 0) "menu") (MAIN_MENU)]
+    [(eq? (vector-ref STATE-VECTOR 0) "lost") (LOST)]
+    [(eq? (vector-ref STATE-VECTOR 0) "won") (VICTORY)]
     )
   )
 
+;; stops the big-bang
 (define (should-stop? world)
   (eq? (vector-ref STATE-VECTOR 0) "exit"))
-; big-bang displays the created world
+;; big-bang displays the created world
 (big-bang WorldStates
   (to-draw WorldStates) ; draws the image
   (on-tick UPDATE_POSITION 1/120)
